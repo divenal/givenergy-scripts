@@ -1,11 +1,13 @@
+"""
+Wrapper around requests for the GivEnergy API.
+implements connection pooling and retries
+"""
+
 import os
-import sys
 import configparser
 from requests import Session
 from requests.adapters import HTTPAdapter, Retry
 
-# Wrapper around requuests for the GivEnergy API.
-# implements connection pooling and retries
 #
 # Config is read from ~/.solar - expects a [givenergy] section, which includes
 # 'inverter' id and 'control' with (at least) full api:inverter access
@@ -19,7 +21,7 @@ class GivEnergyApi:
     def __init__(self, context="givenergy.py"):
         config = configparser.ConfigParser()
         config.read(os.path.join(os.environ.get('HOME'), '.solar'))
-        
+
         self.config = config
         self.context = context
         self.url = "https://api.givenergy.cloud/v1/inverter/" + config['givenergy']['inverter']
@@ -40,14 +42,16 @@ class GivEnergyApi:
     # low-level stuff
 
     def get(self, url):
+        """perform a GET operation on the api"""
         response = self.session.request('GET', self.url + url)
         response.raise_for_status()
         return response.json()['data']
 
     def post(self, url, payload=None, value=None):
-        if payload == None:
+        """perform a POST operation on the api"""
+        if payload is None:
             payload={ 'context': 'offpeak.py' }
-        if value != None:
+        if value is not None:
             payload['value'] = str(value)
         response = self.session.request('POST', self.url + url, json=payload)
         response.raise_for_status()
@@ -64,10 +68,11 @@ class GivEnergyApi:
         return self.latest
 
     def read_setting(self, reg):
+        """read a register via the api"""
         json = self.post(f"/settings/{reg!s}/read")
         return json['value']
 
     def modify_setting(self, reg, value):
+        """write a register via the api"""
         json = self.post(f"/settings/{reg!s}/write", value=value)
         print(f"modify {reg}: value: {json['value']}, success: {json['success']}, message: {json['message']}")
-

@@ -1,25 +1,26 @@
 #!/usr/bin/python3
 
-# a simple script to run after sundown, to sum up
+"""
+A simple script to run after sundown, to sum up
 # the day's data and upload it to pvoutput.org
+"""
+
 # TODO: probably easier to just use the meter-data, though
 # would be good to extend this to also include the peak export,
 # and distinguish off-peak and peak-rate grid import.
 
-import os
 import sys
-from givenergy import GivEnergyApi
 from datetime import date, timedelta
 import time
 import requests
-# import json
+from givenergy import GivEnergyApi
 
 def get_solar(api, day):
-    # connect to the givenergy api and request the days data
-    # It doesn't include any data for current day, so grab
+    """connect to the givenergy api and request the day's data"""
+    # Using per-day results doesn't include any data for current day, so grab
     # the half-hourly data and sum it up
     # Returns a tuple [ generated, exported ]
-    
+
     payload = {
         'start_time': str(day),
         'end_time'  : str(day + timedelta(days=1)),
@@ -47,9 +48,9 @@ def get_solar(api, day):
     return [generated, exported]
 
 def upload(config, day, solar):
-    # upload the results to pvoutput.org
+    """upload the results to pvoutput.org"""
     url='https://pvoutput.org/service/r2/addoutput.jsp'
-    
+
     headers = {
         'X-Pvoutput-Apikey': config['key'],
         'X-Pvoutput-SystemId': config['id']
@@ -75,4 +76,5 @@ def main():
     print(solar)
     upload(api.config['pvoutput'], day, solar)
 
-main()
+if __name__ == "__main__":
+    main()
