@@ -76,3 +76,20 @@ class GivEnergyApi:
         """write a register via the api"""
         json = self.post(f"/settings/{reg!s}/write", value=value)
         print(f"modify {reg}: value: {json['value']}, success: {json['success']}, message: {json['message']}")
+
+
+def main():
+    """If invoked as a script, fetch the list of presets and settings available."""
+    api = GivEnergyApi()
+
+    presets = api.get("/presets")
+    print('presets:')
+    for p in presets:
+        print("{:3d} {:40s} : {:s}".format(p['id'], p['name'], p['description']))
+    settings = api.get("/settings")
+    print('\nsettings:')
+    for s in settings:
+        print("{:3d} {:40s} : {:s}".format(s['id'], s['name'], s['validation']))
+
+if __name__ == "__main__":
+    main()
