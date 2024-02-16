@@ -50,7 +50,7 @@ class GivEnergyApi:
     def post(self, url, payload=None, value=None):
         """perform a POST operation on the api"""
         if payload is None:
-            payload={ 'context': 'offpeak.py' }
+            payload={ 'context': self.context }
         if value is not None:
             payload['value'] = str(value)
         response = self.session.request('POST', self.url + url, json=payload)

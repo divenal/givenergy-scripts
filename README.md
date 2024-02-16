@@ -15,6 +15,9 @@ They share a utility file `givenergy.py` which implements the API via the `reque
 
 There's some constants at the top to define the numerical registers for the api settings. You should check to make sure they're the same for your system. (Invoke `givenergy.py` as a script to list the avaiable register numbers.)
 
+## givenergy-pause-times.py
+`givenergy-pause-times.py` runs from cron to update pause-battery times (since I want more than one per day, but only one slot is provided).
+
 ## pvoutput.py
 `pvoutput.py` runs once per day, via cron. It downloads the day's parameters, and uploads to pvoutput.
 
