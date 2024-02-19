@@ -18,6 +18,9 @@ There's some constants at the top to define the numerical registers for the api 
 ## givenergy-pause-times.py
 `givenergy-pause-times.py` runs from cron to update pause-battery times (since I want more than one per day, but only one slot is provided).
 
+## givenergy-discharge.py
+`givenergy-discharge.py` runs from cron at 8pm (after we've cooked main meal). If there's lots of juice left in the battery, it sets up to dump some to the grid.
+
 ## pvoutput.py
 `pvoutput.py` runs once per day, via cron. It downloads the day's parameters, and uploads to pvoutput.
 
