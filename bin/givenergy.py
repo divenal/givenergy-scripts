@@ -3,8 +3,10 @@ Wrapper around requests for the GivEnergy API.
 implements connection pooling and retries
 """
 
-import os
 import configparser
+import os
+import time
+from datetime import datetime
 from requests import Session
 from requests.adapters import HTTPAdapter, Retry
 
@@ -38,6 +40,12 @@ class GivEnergyApi:
 
         self.latest = None  # cache of system data
 
+        # doesn't really belong here, but since I have
+        # most scripts redirecting stdout to a logfile,
+        # it is useful.
+        # Perhaps add a log() fn which prefixes this ?
+        now = datetime.now()
+        print(context, now.strftime(': %Y%d%m::%H:%M:%S'))
 
     # low-level stuff
 
@@ -69,14 +77,31 @@ class GivEnergyApi:
 
     def read_setting(self, reg):
         """read a register via the api"""
-        json = self.post(f"/settings/{reg!s}/read")
-        return json['value']
+        delay = 2
+        for attempt in range(10):
+            json = self.post(f"/settings/{reg!s}/read")
+            value = json['value']
+            # errors are returned as a -ve integer.
+            # Which is a bit inconvenient since a successful
+            # read might give a string rather than an integer.
+            if not isinstance(value, int) or value >= 0:
+                return value
+            print(f'read {reg} got {value}: retrying')
+            time.sleep(delay)
+            delay = delay * 2
+        raise IOError('too many attempts to read setting')
 
     def modify_setting(self, reg, value):
         """write a register via the api"""
-        json = self.post(f"/settings/{reg!s}/write", value=value)
-        print(f"modify {reg}: value: {json['value']}, success: {json['success']}, message: {json['message']}")
-
+        delay = 2
+        for attempt in range(10):
+            json = self.post(f"/settings/{reg!s}/write", value=value)
+            print(f"modify {reg}: value: {json['value']}, success: {json['success']}, message: {json['message']}")
+            if json['success'] == True:
+                return
+            time.sleep(delay)
+            delay = delay * 2
+        raise IOError('too many attempts to modify setting')
 
 def main():
     """If invoked as a script, fetch the list of presets and settings available."""
