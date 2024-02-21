@@ -1,53 +1,19 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 """
-A simple script to run after sundown, to sum up
-# the day's data and upload it to pvoutput.org
+A simple script to run after sundown, to download
+the day's data and upload it to pvoutput.org
 """
 
-# TODO: probably easier to just use the meter-data, though
-# would be good to extend this to also include the peak export,
-# and distinguish off-peak and peak-rate grid import.
+# TODO: would be nice to distinguish off-peak and peak-rate
+# import - just need to use the datapoints version and pick
+# out the transition points.
 
 import sys
-from datetime import date, timedelta
-import time
 import requests
 from givenergy import GivEnergyApi
 
-def get_solar(api, day):
-    """connect to the givenergy api and request the day's data"""
-    # Using per-day results doesn't include any data for current day, so grab
-    # the half-hourly data and sum it up
-    # Returns a tuple [ generated, exported ]
-
-    payload = {
-        'start_time': str(day),
-        'end_time'  : str(day + timedelta(days=1)),
-        'grouping'  : 0,  #  half-hourly
-        'types': [
-            0,  # PV to home
-            1,  # PV to battery
-            2,  # PV to grid
-        ],
-        'context': 'pvoutput'
-    }
-
-    data = api.post('/energy-flows', payload=payload )
-
-    # Now go through and sum up the various contributions
-    generated=0.0
-    exported=0.0
-    for result in data.values():
-        data = result['data']
-        home = float(data['0'])
-        battery = float(data['1'])
-        grid = float(data['2'])
-        generated += home + battery + grid
-        exported += grid
-    return [generated, exported]
-
-def upload(config, day, solar):
+def upload(config, day, solar, export):
     """upload the results to pvoutput.org"""
     url='https://pvoutput.org/service/r2/addoutput.jsp'
 
@@ -56,25 +22,38 @@ def upload(config, day, solar):
         'X-Pvoutput-SystemId': config['id']
     }
     payload={
-        'd': day.strftime('%Y%m%d'),
-        'g': int(solar[0]*1000),
-        'e': int(solar[1]*1000)
+        'd': day,
+        'g': int(solar*1000),
+        'e': int(export*1000)
     }
     #print(url, headers, payload)
     response = requests.request('POST', url, headers=headers, data=payload)
     response.raise_for_status()
-    #print(response, response.text)
+    # print(response, response.text)
 
 def main():
     api = GivEnergyApi('pvoutput')
+
     if len(sys.argv) > 1:
-        day=date.fromisoformat(sys.argv[1])
+        # bit sloppy - get all the data and pick out just
+        # the last one
+        day = sys.argv[1]
+        data = api.get(f'/data-points/{day}?pageSize=4096')
+        today = data[-1]['today']
     else:
-        now = time.time()
-        day=date.fromtimestamp(now)
-    solar = get_solar(api, day)
-    print(solar)
-    upload(api.config['pvoutput'], day, solar)
+        # just use the latest meter data, and we can get
+        # the date from that
+        # TODO: will it always be UTC ?
+        data = api.get('/meter-data/latest')
+        today = data['today']
+        time = data['time']  # yyyy-mm-ddThh:mm:ssZ
+        day = time[0:4] + time[5:7] + time[8:10]
+
+    solar = float(today['solar'])
+    export = float(today['grid']['export'])
+    print(day, solar, export)
+
+    upload(api.config['pvoutput'], day, solar, export)
 
 if __name__ == "__main__":
     main()
