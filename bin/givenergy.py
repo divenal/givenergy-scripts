@@ -45,7 +45,7 @@ class GivEnergyApi:
         # it is useful.
         # Perhaps add a log() fn which prefixes this ?
         now = datetime.now()
-        print(context, now.strftime(': %Y%d%m::%H:%M:%S'))
+        print(context, now.strftime(': %Y%m%d::%H:%M:%S'))
 
     # low-level stuff
 

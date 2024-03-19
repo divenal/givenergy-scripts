@@ -10,7 +10,7 @@ from givenergy import GivEnergyApi
 # registers
 DISCHARGE_START=53
 DISCHARGE_END=54
-ENABLE_DISCHARGE=56
+CHARGE_POWER=72
 DISCHARGE_POWER=73
 
 def main():
@@ -18,19 +18,12 @@ def main():
     latest = api.get_latest_system_data()
     current = latest['battery']['percent']
 
-    # if current is already < 40%, don't bother.
-
-    if current < 40:
-        print(f'{current}% - turning off discharge')
-        api.modify_setting(ENABLE_DISCHARGE, value='false')
-        return
-
-    # target is very roughly 25% by 10:30pm (in case IOG schedules an
+    # target is very roughly 10% by 10:30pm (in case IOG schedules an
     # early charging slot).
     # Battery is 9.5kWh. Don't want to discharge faster than 2kW,
     # so that makes max discharge amount 50% in 2.5h, so if SoC is
-    # more than 75%, round down.
-    delta = 50 if current >= 75 else current - 25
+    # more than 60%, round down.
+    delta = 50 if current >= 60 else current - 10
 
     # excess energy is delta/100 * 9.5kWh
     #  = delta * 95 * 60 Watt-minutes (Wm)
@@ -39,8 +32,17 @@ def main():
     # is an upper-limit on evening power consumption. That
     # corresponds to about 25% of battery in 150 mins. So
     # that's our crossover point.
-    if delta <= 25:
+
+    if current < 25:
+        # normal consumption is about 3% per hour, so
+        # it will lose 10% by 2230 anyway, so don't need
+        # to bother
+        discharge = 950
+        mins = 0
+    elif delta <= 25:
         # adjust elapsed time at 950W
+        # should probably make a small adjustment to account for the base load
+        # after it finishes this discharge.
         discharge = 950
         mins = 6 * delta  # 5700Wm/950W = 6mins ; 25% is 150 mins
     else:
@@ -48,13 +50,17 @@ def main():
         mins = 150
         discharge = delta * 38  # 5700Wm/150m = 38W  ; delta=25% gives 950W
 
+    # set a default charge power of 1000W now - just in case the
+    # offpeak script fails later on. If SoC is down around 10%,
+    # I'll be wanting to refill roughly 50% of battery in 5 hours.
+    api.modify_setting(CHARGE_POWER, value=1000)
+
     # start time is 8pm = 1200 mins past midnight
     # end time is (1200+mins) mins past midnight
     end=1200+mins
     api.modify_setting(DISCHARGE_POWER, value=discharge)
     api.modify_setting(DISCHARGE_START, value='20:00')
     api.modify_setting(DISCHARGE_END, value='%02d:%02d' % (end // 60, end % 60))
-    api.modify_setting(ENABLE_DISCHARGE, value='true')
 
 if __name__ == "__main__":
     main()
