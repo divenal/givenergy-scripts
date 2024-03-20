@@ -1,17 +1,12 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 """
 this runs around 8pm, and decides whether to dump excess
 charge to the grid.
 """
 
-from givenergy import GivEnergyApi
-
-# registers
-DISCHARGE_START=53
-DISCHARGE_END=54
-CHARGE_POWER=72
-DISCHARGE_POWER=73
+from givenergy import GivEnergyApi, \
+       DISCHARGE_START, DISCHARGE_END, CHARGE_POWER, DISCHARGE_POWER
 
 def main():
     api = GivEnergyApi('discharge.py')
@@ -33,7 +28,7 @@ def main():
     # corresponds to about 25% of battery in 150 mins. So
     # that's our crossover point.
 
-    if current < 25:
+    if current < 20:
         # normal consumption is about 3% per hour, so
         # it will lose 10% by 2230 anyway, so don't need
         # to bother

@@ -1,23 +1,20 @@
 #!/usr/bin/python3
 
 """
-this runs just before and just after the off-peak period
+this runs just before the off-peak period.
 It assumes the target charge % has already been set,
 and chooses an appropriate charge rate to spread the
 charge over the whole offpeak period
 """
 
-import sys
-from givenergy import GivEnergyApi
+from givenergy import GivEnergyApi, \
+    CHARGE_POWER, DISCHARGE_POWER, CHARGE_LIMIT, CHARGE_LIMIT_1
 
-# registers
-CHARGE_POWER=72
-DISCHARGE_POWER=73
-CHARGE_LIMIT=77     # the one set by app
-CHARGE_LIMIT_1=101  # the one actually used by the inverter
 
-def offpeak(api):
+def main():
     """calculate required charging power"""
+    api = GivEnergyApi('offpeak.py')
+
     latest = api.get_latest_system_data()
     current = latest['battery']['percent']
     target = api.read_setting(CHARGE_LIMIT)
@@ -49,26 +46,6 @@ def offpeak(api):
     discharge = 250
 
     print(f'Current={current}, target={target} => charge={charge}, discharge={discharge}')
-    return [charge, discharge]
-
-def main():
-    api = GivEnergyApi('offpeak.py')
-
-    # Two modes of operation:
-    #  'before' - calculate charge power based on current and target SoC
-    #  'after'  - restore daytime settings. IOG we charge overnight
-    #    and export most solar, so keep a low charge rate.`
-    # But need high enough charge rate to prevent clipping.   
-
-    if sys.argv[1] == 'before':
-        (charge, discharge) = offpeak(api)
-    elif sys.argv[1] == 'after':
-        print('Restoring full power for daytime')
-        charge=1000
-        discharge=3600
-    else:
-        print('Usage: %s before|after' % (sys.argv[0]), file=sys.stderr)
-        sys.exit(1)
 
     api.modify_setting(CHARGE_POWER, value=charge)
     api.modify_setting(DISCHARGE_POWER, value=discharge)

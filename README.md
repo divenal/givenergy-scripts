@@ -16,7 +16,7 @@ I have 6.4kWp SSW solar feeding 5kW hybrid-gen3 inverter and 9.5kWh battery (day
 
 Tariff is IOG (cheap period 2330 to 0530, with random bonus hours). I tend to ask for car to be ready by 7am (alarm clock time), as a compromise between constraining Octopus to finish charge too early, and extra slots interfering with planning. Inverter can see Zappi chargepoint, which means I need to take steps to avoid battery discharging into car. Current scheme is simply to reduce discharge power to be enough to meet base load, but if the car decides to charge in a bonus slot, it will take some, but not very much, from the battery.
 
-I don't start the battery charge until after midnight, and therefore pause discharge from 2330 until start of charging. This is simply for accounting purposes - it's convenient for all the charging to happen within one day, rather than having it happen at the end of one day for use the next day.
+I don't start the battery charge until after midnight, and therefore pause discharge from 2330 until start of charging. This is mainly for accounting purposes - it's convenient for all the charging to happen within one day, rather than having it happen at the end of one day for use the next day. But also, it seems rebalancing happens at low voltages if the battery is left idle, so it's now getting an hour to idle before charging.
 
 When forcing charge/discharge, I try to do it at lower power for longer, when possible, in the belief that this is better for battery health. (Would be nice if you could store a power with each discharge slot, rather than having to keep swapping between max (when in dynamic mode) and around 1.5kW when doing a forced discharge.
 
@@ -33,22 +33,24 @@ A bit of an anomaly in the AC charging limit: there are (at least) two different
 
 The accumulating meter data for battery in/out seem broken, and daily meter resets at midnight, which is one of the reasons for not starting the batterty charge until after midnight.
 
-To inhibit discharge between 2330 and 0000 (when car might be charging), I abuse the discharge timers slightly: by arranging a timed discharge, but setting a min SoC of 100%, it actually results in a timed pause. Unfortunately, there appears to be a bug in that if the time window crosses midnight, it doesn't honour the discharge limit. So I have to use two discharge slots. But that's fine - there are ten available. It seems to take at least a minute at the end of a timed discharge to return to normal behaviour, so that avoids having a gap. AC charge seems to take precendence over DC discharge, so I can overlap the timers.
+To inhibit discharge between 2330 and 0030 (when car might be charging), I abuse the discharge timers slightly: by arranging a timed discharge, but setting a min SoC of 100%, it actually results in a timed pause. Unfortunately, there appears to be a bug in that if the time window crosses midnight, it doesn't honour the discharge limit. So I have to use two discharge slots. But that's fine - there are ten available. It seems to take at least a minute at the end of a timed discharge to return to normal behaviour, so that avoids having a gap. AC charge seems to take precendence over DC discharge, so I can overlap the timers.
 
 ### Summary
 
 So to summarise:
 * 0030 to 0529 - charging from grid, discharge power 250W, charging power calculated
-* 0530 to 0700 - dynamic mode, discharge power set to 250W, charge power set to 1kW
-* 0700 to 1200 - dynamic mode, max discharge power, battery-charging paused
-* 1200 to 1400 - dynamic mode, max discharge power, battery-charging allowed
-* 1400 to 2000 - dynamic mode, max discharge power, battery-charging paused
+* 0530 to 0700 - dynamic mode, discharge power set to 250W, charge power set to 500W
+* 0700 to 1130 - dynamic mode, max discharge power, battery-charging paused
+* 1130 to 1200   - battery charging allowed up to 500W
+* 1200 to 1400   - battery-charging allowed up to 1000W
+* 1400 to 1500   - battery charging allowed up to 500W
+* 1500 to 2000 - dynamic mode, max discharge power, battery-charging paused
 * 2000 to 2230 - scheduled discharge, power calculated to end with 10%
 * 2230 to 2330 - dynamic
 * 2330 to 0035 - discharge paused (via discharge slot #2/3 with min SoC 100%)
 
 #### Static configuration
-* charge timer 1 0001 to 0529 - variable charge power depending on what is required to reach target SoC
+* charge timer 1 0030 to 0529 - variable charge power depending on what is required to reach target SoC
 * discharge timer 1 typically runs from 2000 to 2230 - again, variable power aiming for 15% by 2230
 * discharge timer 2 bodged to inhibit discharge between 2330 and 2359 (prevent discharge to car)
 * discharge timer 3 bodged to inhibit discharge between 0000 and 0035 (prevent discharge to car)
@@ -56,9 +58,9 @@ So to summarise:
 * discharge mode set to scheduled - home demand. (ie eco + dc discharge enabled)
 
 #### Dynamic stuff implemented by these scripts, via cron
-* move pause time between two configs: 0700 to 1300, and 1530 to 1830, as required
+* move pause time between two configs: 0700 to 1130, and 1530 to 1830, as required
 * around 2330, calculate charging power required, and reduce discharge power
-* around 0700, restore discharge power to max, and charge power to around 1kW.
+* around 0700, restore discharge power to max, and charge power to 500W, set pause timer
 * around 2000, decide whether to dump to grid, and adjust discharge power and/or ending time.
 
 # Configuration
@@ -76,15 +78,14 @@ For the pvoutput script, you need a `[pvoutput]` with
 The scripts are in bin/
 
 ## givenergy.py
-They share a utility file `givenergy.py` which implements the API via the `requests` package. It auto-retries on failure. When invoked as a script, it retrieves and prints the presets and settings available for your inverter.
+They share a utility file `givenergy.py` which implements the API via the `requests` package. It auto-retries on failure.
+Has some configuration at the top of the file giving settings numbers, which may need to be adjusted to match your inverter.
+
+When invoked as a script with no parameters, it retrieves and prints the presets and settings available for your inverter.
+Parameters can also be given: these can either be the numbers or short names of settings to retrieve and display, or in the form setting=value, will modify a setting. Available names are 'cp' and 'dp' for charge/discharge power, 'ps' and 'pe' for pause start and ends.
 
 ## givenergy-offpeak.py
 `givenergy-offpeak.py` runs from cron just before and after the off-peak period. With parameter `before` it sets up for overnight mode, which means setting charge rate to reach the (already set) target % SoC  over the full 6 hours. With `after` it restores daytime settings. You'll need to tweak the hard-coded constants to match your system.
-
-There's some constants at the top to define the numerical registers for the api settings. You should check to make sure they're the same for your system. (Invoke `givenergy.py` as a script to list the avaiable register numbers.)
-
-## givenergy-pause-times.py
-`givenergy-pause-times.py` runs from cron to update pause-battery times (since I want more than one per day, but only one slot is provided).
 
 ## givenergy-discharge.py
 `givenergy-discharge.py` runs from cron at 8pm (after we've cooked main meal). If there's lots of juice left in the battery, it sets up to dump some to the grid.

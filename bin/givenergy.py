@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Wrapper around requests for the GivEnergy API.
 implements connection pooling and retries
@@ -6,9 +8,20 @@ implements connection pooling and retries
 import configparser
 import os
 import time
+import sys
 from datetime import datetime
 from requests import Session
 from requests.adapters import HTTPAdapter, Retry
+
+DISCHARGE_START=53
+DISCHARGE_END=54
+CHARGE_POWER=72
+DISCHARGE_POWER=73
+CHARGE_LIMIT=77     # the one set by app
+PAUSE_BATTERY=96
+CHARGE_LIMIT_1=101  # the one actually used by the inverter
+PAUSE_START=155
+PAUSE_END=156
 
 #
 # Config is read from ~/.solar - expects a [givenergy] section, which includes
@@ -45,7 +58,7 @@ class GivEnergyApi:
         # it is useful.
         # Perhaps add a log() fn which prefixes this ?
         now = datetime.now()
-        print(context, now.strftime(': %Y%m%d::%H:%M:%S'))
+        print(context, now.strftime(': %Y-%m-%d %H:%M:%S'))
 
     # low-level stuff
 
@@ -97,24 +110,48 @@ class GivEnergyApi:
         for attempt in range(10):
             json = self.post(f"/settings/{reg!s}/write", value=value)
             print(f"modify {reg}: value: {json['value']}, success: {json['success']}, message: {json['message']}")
-            if json['success'] == True:
+            if json['success'] is True:
                 return
             time.sleep(delay)
             delay = delay * 2
         raise IOError('too many attempts to modify setting')
 
 def main():
-    """If invoked as a script, fetch the list of presets and settings available."""
+    """If invoked as a script with no parameters, fetch the list of presets and settings available.
+    Else each param is a setting to be either displayed or modified. eg
+      cp=250 cl
+    will set charge_power and display charge_limit"""
+
     api = GivEnergyApi()
 
-    presets = api.get("/presets")
-    print('presets:')
-    for p in presets:
-        print("{:3d} {:40s} : {:s}".format(p['id'], p['name'], p['description']))
-    settings = api.get("/settings")
-    print('\nsettings:')
-    for s in settings:
-        print("{:3d} {:40s} : {:s}".format(s['id'], s['name'], s['validation']))
+    names = { 'cp': CHARGE_POWER,
+              'dp': DISCHARGE_POWER,
+              'cl': CHARGE_LIMIT,
+              'ps': PAUSE_START,
+              'pe': PAUSE_END }
+
+    if len(sys.argv) > 1:
+        # each arg is a setting to be either displayed or (if followed by =val) modified.
+        for arg in [x.split('=', 1) for x in sys.argv[1:]]:
+            s = arg[0]
+            if s in names: s=names[s]
+            if len(arg) == 1:
+                # just retrieve the setting
+                val = api.read_setting(s)
+                print(s, val)
+            else:
+                # set the value
+                api.modify_setting(s, arg[1])
+    else:
+        # just display the available settings
+        presets = api.get("/presets")
+        print('presets:')
+        for p in presets:
+            print("{:3d} {:40s} : {:s}".format(p['id'], p['name'], p['description']))
+        settings = api.get("/settings")
+        print('\nsettings:')
+        for s in settings:
+            print("{:3d} {:40s} : {:s}".format(s['id'], s['name'], s['validation']))
 
 if __name__ == "__main__":
     main()
