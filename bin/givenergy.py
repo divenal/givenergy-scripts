@@ -18,7 +18,7 @@ DISCHARGE_END=54
 CHARGE_POWER=72
 DISCHARGE_POWER=73
 CHARGE_LIMIT=77     # the one set by app
-PAUSE_BATTERY=96
+PAUSE_MODE=96
 CHARGE_LIMIT_1=101  # the one actually used by the inverter
 PAUSE_START=155
 PAUSE_END=156
@@ -46,8 +46,8 @@ class GivEnergyApi:
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json'})
         #allowed_methods not yet on the version on maple
-        #retries = Retry(total=10, backoff_factor=5, allowed_methods=None)
-        retries = Retry(total=10, backoff_factor=5, method_whitelist=frozenset(['HEAD', 'TRACE', 'GET', 'PUT', 'OPTIONS', 'DELETE']))
+        retries = Retry(total=10, backoff_factor=5, allowed_methods=None)
+        #retries = Retry(total=10, backoff_factor=5, method_whitelist=frozenset(['HEAD', 'TRACE', 'GET', 'PUT', 'OPTIONS', 'DELETE']))
         session.mount(self.url, HTTPAdapter(max_retries=retries))
         self.session = session
 
@@ -126,7 +126,10 @@ def main():
 
     names = { 'cp': CHARGE_POWER,
               'dp': DISCHARGE_POWER,
+              'ds': DISCHARGE_START,
+              'de': DISCHARGE_END,
               'cl': CHARGE_LIMIT,
+              'pt': PAUSE_MODE,
               'ps': PAUSE_START,
               'pe': PAUSE_END }
 

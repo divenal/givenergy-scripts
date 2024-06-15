@@ -13,12 +13,12 @@ def main():
     latest = api.get_latest_system_data()
     current = latest['battery']['percent']
 
-    # target is very roughly 10% by 10:30pm (in case IOG schedules an
+    # target is very roughly 8% by 10:30pm (in case IOG schedules an
     # early charging slot).
     # Battery is 9.5kWh. Don't want to discharge faster than 2kW,
     # so that makes max discharge amount 50% in 2.5h, so if SoC is
     # more than 60%, round down.
-    delta = 50 if current >= 60 else current - 10
+    delta = 50 if current >= 60 else current - 8 
 
     # excess energy is delta/100 * 9.5kWh
     #  = delta * 95 * 60 Watt-minutes (Wm)

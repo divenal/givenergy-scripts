@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 """
 this runs just before the off-peak period.
@@ -8,7 +8,7 @@ charge over the whole offpeak period
 """
 
 from givenergy import GivEnergyApi, \
-    CHARGE_POWER, DISCHARGE_POWER, CHARGE_LIMIT, CHARGE_LIMIT_1
+    CHARGE_POWER, CHARGE_LIMIT, CHARGE_LIMIT_1
 
 
 def main():
@@ -36,19 +36,9 @@ def main():
     # Note also that inverter tends to add about 180W over set rate anyway.
     charge = 500 if delta <= 25 else delta * 20
 
-    # set discharge quite low:
-    #  if already above target, don't really want to discharge
-    #  IOG might extend charging beyond normal cheap hours. House demand is
-    #  minimal until 7am, but if car is charging, don't let it take
-    #  too much from battery
-    # Note that min discharge is about 300W anyway, and it may
-    # add at least 100 to whatever goes here.
-    discharge = 250
-
-    print(f'Current={current}, target={target} => charge={charge}, discharge={discharge}')
+    print(f'Current={current}, target={target} => charge={charge}')
 
     api.modify_setting(CHARGE_POWER, value=charge)
-    api.modify_setting(DISCHARGE_POWER, value=discharge)
 
 if __name__ == "__main__":
     main()
