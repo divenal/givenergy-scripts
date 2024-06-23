@@ -7,8 +7,12 @@ and chooses an appropriate charge rate to spread the
 charge over the whole offpeak period
 """
 
-from givenergy import GivEnergyApi, \
-    CHARGE_POWER, CHARGE_LIMIT, CHARGE_LIMIT_1
+from givenergy import (
+    GivEnergyApi,
+    CHARGE_POWER,
+    CHARGE_LIMIT,
+    CHARGE_LIMIT_1,
+)
 
 
 def main():
@@ -39,6 +43,7 @@ def main():
     print(f'Current={current}, target={target} => charge={charge}')
 
     api.modify_setting(CHARGE_POWER, value=charge)
+
 
 if __name__ == "__main__":
     main()

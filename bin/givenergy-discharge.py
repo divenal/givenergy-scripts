@@ -3,22 +3,31 @@
 """
 this runs around 8pm, and decides whether to dump excess
 charge to the grid.
+The discharge timer is typically configured to be
+20:00 to 22:30-ish - we get to adjust the end time
+if we want, then enable it.
 """
 
-from givenergy import GivEnergyApi, \
-       DISCHARGE_START, DISCHARGE_END, CHARGE_POWER, DISCHARGE_POWER
+from givenergy import (
+    GivEnergyApi,
+    DISCHARGE_START,
+    DISCHARGE_END,
+    CHARGE_POWER,
+    DISCHARGE_POWER,
+    ENABLE_DC_DISCHARGE
+)
 
 def main():
     api = GivEnergyApi('discharge.py')
     latest = api.get_latest_system_data()
     current = latest['battery']['percent']
 
-    # target is very roughly 8% by 10:30pm (in case IOG schedules an
+    # target is very roughly 9% by 10:30pm (in case IOG schedules an
     # early charging slot).
     # Battery is 9.5kWh. Don't want to discharge faster than 2kW,
     # so that makes max discharge amount 50% in 2.5h, so if SoC is
     # more than 60%, round down.
-    delta = 50 if current >= 60 else current - 8 
+    delta = 50 if current >= 60 else current - 9
 
     # excess energy is delta/100 * 9.5kWh
     #  = delta * 95 * 60 Watt-minutes (Wm)
@@ -56,6 +65,7 @@ def main():
     api.modify_setting(DISCHARGE_POWER, value=discharge)
     api.modify_setting(DISCHARGE_START, value='20:00')
     api.modify_setting(DISCHARGE_END, value='%02d:%02d' % (end // 60, end % 60))
+    api.modify_setting(ENABLE_DC_DISCHARGE, value=True)
 
 if __name__ == "__main__":
     main()

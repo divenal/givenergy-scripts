@@ -1,0 +1,1 @@
+../givenergy-modbus-async/scripts/mon2.py

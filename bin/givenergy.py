@@ -13,15 +13,22 @@ from datetime import datetime
 from requests import Session
 from requests.adapters import HTTPAdapter, Retry
 
+ECO_MODE=24
 DISCHARGE_START=53
 DISCHARGE_END=54
+ENABLE_DC_DISCHARGE=56
 CHARGE_POWER=72
 DISCHARGE_POWER=73
 CHARGE_LIMIT=77     # the one set by app
-PAUSE_MODE=96
+PAUSE_MODE=96       # 0-3
 CHARGE_LIMIT_1=101  # the one actually used by the inverter
 PAUSE_START=155
 PAUSE_END=156
+
+DISCHARGE_START_n= (53, 41,131,134,137,140,143,146,149,152)
+DISCHARGE_END_n=   (54, 42,132,135,138,141,144,147,150,153)
+DISCHARGE_LIMIT_n=(129,130,133,136,139,142,145,148,151,154)
+
 
 #
 # Config is read from ~/.solar - expects a [givenergy] section, which includes
@@ -33,9 +40,10 @@ PAUSE_END=156
 class GivEnergyApi:
     """A wrapper around requests for GivEnergy api"""
 
-    def __init__(self, context="givenergy.py"):
-        config = configparser.ConfigParser()
-        config.read(os.path.join(os.environ.get('HOME'), '.solar'))
+    def __init__(self, context="givenergy.py", config=None):
+        if config is None:
+            config = configparser.ConfigParser()
+            config.read(os.path.join(os.environ.get('HOME'), '.solar'))
 
         self.config = config
         self.context = context
@@ -45,9 +53,7 @@ class GivEnergyApi:
         session.headers.update({'Authorization': 'Bearer ' + config['givenergy']['api_token'],
                                 'Content-Type': 'application/json',
                                 'Accept': 'application/json'})
-        #allowed_methods not yet on the version on maple
-        retries = Retry(total=10, backoff_factor=5, allowed_methods=None)
-        #retries = Retry(total=10, backoff_factor=5, method_whitelist=frozenset(['HEAD', 'TRACE', 'GET', 'PUT', 'OPTIONS', 'DELETE']))
+        retries = Retry(total=10, backoff_factor=5, allowed_methods=None)  # None means all
         session.mount(self.url, HTTPAdapter(max_retries=retries))
         self.session = session
 
@@ -126,18 +132,30 @@ def main():
 
     names = { 'cp': CHARGE_POWER,
               'dp': DISCHARGE_POWER,
-              'ds': DISCHARGE_START,
-              'de': DISCHARGE_END,
               'cl': CHARGE_LIMIT,
               'pt': PAUSE_MODE,
               'ps': PAUSE_START,
-              'pe': PAUSE_END }
+              'pe': PAUSE_END,
+              'ds': DISCHARGE_START,
+              'de': DISCHARGE_END,
+              'ed': ENABLE_DC_DISCHARGE,
+              'eco': ECO_MODE,
+              }
+
+    # add numbered discharge slots
+    for idx in range(1,11):
+        names[f'ds{idx}'] = DISCHARGE_START_n[idx-1]
+        names[f'de{idx}'] = DISCHARGE_END_n[idx-1]
+        names[f'dl{idx}'] = DISCHARGE_LIMIT_n[idx-1]
 
     if len(sys.argv) > 1:
         # each arg is a setting to be either displayed or (if followed by =val) modified.
-        for arg in [x.split('=', 1) for x in sys.argv[1:]]:
+        for arg in (x.split('=', 1) for x in sys.argv[1:]):
             s = arg[0]
-            if s in names: s=names[s]
+            if s in names:
+                s = names[s]
+            else:
+                s = int(s)
             if len(arg) == 1:
                 # just retrieve the setting
                 val = api.read_setting(s)
