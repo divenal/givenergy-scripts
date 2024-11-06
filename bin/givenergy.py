@@ -19,11 +19,15 @@ DISCHARGE_END=54
 ENABLE_DC_DISCHARGE=56
 CHARGE_POWER=72
 DISCHARGE_POWER=73
-CHARGE_LIMIT=77     # the one set by app
+CHARGE_LIMIT=77     # shouldn't use this one - app now fixed to set CHARGE_LIMIT_1
 PAUSE_MODE=96       # 0-3
 CHARGE_LIMIT_1=101  # the one actually used by the inverter
 PAUSE_START=155
 PAUSE_END=156
+
+CHARGE_START_n= (64, 102, 105, 108, 111, 114, 117, 120, 123, 126)
+CHARGE_END_n=   (65, 103, 106, 109, 112, 115, 118, 121, 124, 127)
+CHARGE_LIMIT_n=(101, 104, 107, 110, 113, 116, 119, 122, 125, 128)
 
 DISCHARGE_START_n= (53, 41,131,134,137,140,143,146,149,152)
 DISCHARGE_END_n=   (54, 42,132,135,138,141,144,147,150,153)
@@ -144,6 +148,9 @@ def main():
 
     # add numbered discharge slots
     for idx in range(1,11):
+        names[f'cs{idx}'] = CHARGE_START_n[idx-1]
+        names[f'ce{idx}'] = CHARGE_END_n[idx-1]
+        names[f'cl{idx}'] = CHARGE_LIMIT_n[idx-1]
         names[f'ds{idx}'] = DISCHARGE_START_n[idx-1]
         names[f'de{idx}'] = DISCHARGE_END_n[idx-1]
         names[f'dl{idx}'] = DISCHARGE_LIMIT_n[idx-1]

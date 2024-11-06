@@ -20,7 +20,7 @@ I have 6.4kWp SSW solar feeding 5kW hybrid-gen3 inverter and 9.5kWh battery (day
 
 Tariff is IOG. The inverter does not see the chargepoint, so I don't have to worry about it discharging into the car when it's charging. But do have to avoid exporting when the car is charging, since the car will take it instead of importing from the grid. Charging is normally finished during normal cheap rate, but sometimes as late as 7am weekday, and 10am at the weekend.
 
-Because export is a generous 15p, I inhibit charging battery from solar during the day, just exporting everything. A separate modbus-based monitor handles clipping-avoidance.
+Because export is a generous 15p, During the summer I inhibit charging battery from solar during the day, just exporting everything. A separate modbus-based monitor handles clipping-avoidance.
 
 I don't start the battery charge until after midnight, and therefore pause discharge from 2330 until start of charging. This is mainly for accounting purposes - it's convenient for all the charging to happen within one day, rather than having it happen at the end of one day for use the next day. But also, it seems rebalancing happens at low voltages if the battery is left idle, so it's now getting an hour to idle before charging.
 
@@ -30,18 +30,27 @@ Tend to cook main meal around 1830, and from 2000 we don't use very much, so sta
 
 A rpi is running 24/7 anyway (doing other stuff), and so it's easy enough to add these to its relatively small workload.
 
+### Next things to implement
+
+Now that winter is here, and with ASHP, battery may not last all day.
+Previously I've not really tried to take advantage of bonus charging slots, but now I'm tempted. I realised that there is a rather easy way to feed information into the modbus script without requiring networking or anything - I can use a mmap-ed file.
+
+So next project is for external scripts to download zappi state and IOG planned dispatches and stuff them into a binary file - /tmp/sensors perhaps - and the modbus script will have this mmap-ed and can pick up any changes each cycle.
+
 ### Bugs to workaround
 
 A bit of an anomaly in the AC charging limit: there are (at least) two different settings available via the API: #77 and #101. (The former is a generic one, the latter is specific for charging slot #1.) Unfortunately, #101 seems to be the one that the inverter actually uses, but #77 is the one the app sets. Because it's quite convenient to set via the app, my scripts copy from #77 to #101 in the evening.
+ - that bug seems to have been fixed now - app/portal seem to update the correct register.
+ 
+The accumulating meter data for battery in/out seem broken (both record the average of in/out, rather than separate totals), and daily meter resets at midnight, which is one of the reasons for not starting the batterty charge until after midnight.
 
-The accumulating meter data for battery in/out seem broken, and daily meter resets at midnight, which is one of the reasons for not starting the batterty charge until after midnight.
+To idle the battery between 2330 and 0030 (since may as well run from cheap grid rate), I used to use either a charge timer with a low target SoC, or a discharge timer with a high target SoC, but lately, charging seems to charge to at least 20%, and discharge will *charge* gently (around 300W ?) if SoC is below the limit. So now I just turn eco mode off at 2330 via modbus script.
 
-To idle the battery between 2330 and 0030 (since may as well run from cheap grid rate), I abuse the discharge timers slightly: by arranging a timed discharge, but setting a min SoC of 100%, it actually results in a timed pause. Unfortunately, there appears to be a bug in that if the time window crosses midnight, it doesn't honour the discharge limit. (Possibly fixed in latest firmware.) So I have to use two discharge slots. But that's fine - there are ten available. It seems to take at least a minute at the end of a timed discharge to return to normal behaviour, so that avoids having a gap. AC charge seems to take precendence over DC discharge, so I can overlap the timers.
-
+One new unexpected feature: if a timed-discharge is configured with a lower limit, that seems to be active even if timed-export flag is clear. I'm using that to try to save some battery charge for the peak period. (No financial impertative, but trying to do my bit for the grid.)
 
 ### Modbus script
 
-I want to export as much solar as possible directly. But when power exceeds the 5kW AC limit, I need to divert some to the battery, else I get clipping. There's basically two ways to do this:
+During the summer, I want to export as much solar as possible directly. But when power exceeds the 5kW AC limit, I need to divert some to the battery, else I get clipping. There's basically two ways to do this:
  - operate a battery-first policy, and actively manage the max charging power so that just enough goes to the battery to keep AC close to 5kW.
  - operate a grid-first policy, so that the inverter automatically sends excess to the battery.
 
@@ -56,7 +65,7 @@ The modbus script is also allowed to force-export when it detects that battery l
 
 One final job of the script: when I force an export, I tend to do it at less than max power. But when I'm in normal dynamic discharge mode, I want full discharge power to be available. So the script automatically detects when we are not exporting, and sets power to max.
 
-The current, rather ad-hoc, rule, is that during the time window defined by the pause timer, the modbus script is in charge. Otherwise, it limits its activity. (By having the script configured using inverter timers, it saves having to try to send it messages by some other means while it's running. I can communicate it, rather crudely, through these timers.)
+The current, rather ad-hoc, rule, is that during the time window defined by the pause timer, the modbus script is in charge. Otherwise, it limits its activity. (By having the script configured using inverter timers, it saves having to try to send it messages by some other means while it's running. I can communicate to it, rather crudely, through these timers. Though it has since occurred to me that I can use a mmap file to send it data too. So I'll probably add that.)
 
 
 ### Summary
@@ -72,21 +81,23 @@ So to summarise:
 X is dynamically set based on car-charging activity. It's usually 0530, but if the car is charging beyond the normal cheap hours, X is increased until the end of car charging. (This is the mechanism by which the modbus script doesn't get involved while car is charging.) Because the pause timer is not active, the battery charges from solar.
 
 #### Static configuration
-* charge timer 1 0030 to 0529 - variable charge power depending on what is required to reach target SoC
-* discharge timer 1 typically runs from 2000 to 2230
-* discharge timer 2 reserved for use by the modbus script, typically 0800 to 1810 with a discharge limit of 30%
-* discharge timers 3 and 4 run from 23:30 to 00:30 with a discharge limit 100%, to implement a paused-discharge (prvent discharge during cheap rate)
+* charge timer 2 0030 to 0529 - variable charge power depending on what is required to reach target SoC
+* discharge timer 1 typically runs from 2200 to 2330
+* charge timers 3 and 4 reserved for use by the modbus script. The time slots are not used, so the inverter ignores them, but the charging limit is used by the script. Limit 3 is used until 1630 when it switches to limit 4.
+* discharge timers 3 and 4 are used to save battery for peak period. Slot 3 is active until 16:30 with a discharge limit of 25%, and #4 after that with a limit of 4. The script uses the range start#3 to end#4 to decide when it's allowed to discharge the battery, down to the limit set by the charging timers.
+* discharge timer 2 reserved for use by the modbus script, typically 0800 to 1810 with a discharge limit of 30% (but modbus script stops the discharge before it reaches that limit)
 * pause timer 0530 to 1955 (with pause mode adjusted dynamically by modbus script)
 
-Note that timer-2 should end before the pause timer (to give the modbus script a chance to turn off forced discharge while it is still in charge).
+Note that discharge #4 should end before the pause timer (to give the modbus script a chance to turn off forced discharge while it is still in charge).
 
 #### Dynamic stuff implemented by these scripts, via cron
-* around 2330, run givenergy-offpeak.py to calculate charging power required, and reduce discharge power, disable timed export flag
+* around 2330, run givenergy-offpeak.py to calculate charging power required, and reduce discharge power
 * around 0500, run givenergy-iog.py to check whether car is charging, and set pause start time
-* around 2000, run givenergy-discharge.py to decide whether to dump to grid, and adjust discharge power and/or ending time.
+* around 0530, switch to "day mode" - pause-type = pause-charge, disable timed discharge, set charge/discharge power to max
+* around 2200, run givenergy-discharge.py to decide whether to dump to grid, and adjust discharge power and/or ending time.
 
 #### Dynamic stuff implemented via modbus script
-Use discharge limit on timer 2 to export as required (by turning enable-dc-discharge on and off). The discharge limit is both config for the script and an emergency brake: the script should initiate a discharge if SoC >= (limit+10%), and stop when it gets down to (limit+5%). So it shouldn't actually get down to the limit itself, unless the script has crashed.
+Use charge limit 3/4 to charge / export as required (by turning enable-dc-discharge on and off). The script should initiate a discharge if SoC >= (limit+5%), and stop when it gets down to limit. And if SoC is less than limit-5%, it will permit solar charging back up to limit.
 
 # Configuration
 The scripts expect to find a config file in `~/.solar`  - this is in a format for configparser.

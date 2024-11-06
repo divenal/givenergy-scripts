@@ -17,6 +17,9 @@ def upload(config, day, solar, export):
     """upload the results to pvoutput.org"""
     url='https://pvoutput.org/service/r2/addoutput.jsp'
 
+    # seems to reject record if export exceeds solar by too much
+    if export > solar*1.1: export = solar*1.1
+
     headers = {
         'X-Pvoutput-Apikey': config['key'],
         'X-Pvoutput-SystemId': config['id']

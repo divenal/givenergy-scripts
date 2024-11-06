@@ -10,8 +10,7 @@ charge over the whole offpeak period
 from givenergy import (
     GivEnergyApi,
     CHARGE_POWER,
-    CHARGE_LIMIT,
-    CHARGE_LIMIT_1,
+    CHARGE_LIMIT_2,
 )
 
 
@@ -21,11 +20,8 @@ def main():
 
     latest = api.get_latest_system_data()
     current = latest['battery']['percent']
-    target = api.read_setting(CHARGE_LIMIT)
+    target = api.read_setting(CHARGE_LIMIT_2)
     delta = target - current
-
-    # copy target to the setting that the inverter actually applies
-    api.modify_setting(CHARGE_LIMIT_1, value=target)
 
     # While I have 6 hours offpeak from 2330 to 0530, because the
     # cumulative metering for battery in/out seems broken, I want
@@ -38,7 +34,8 @@ def main():
     # Arbitrarily choose min charge rate of 500W which will
     # deliver 2.5kWh, or 25%, in 5 hours.
     # Note also that inverter tends to add about 180W over set rate anyway.
-    charge = 500 if delta <= 25 else delta * 20
+    # if target is over 95% we'll need higher power to compensate for slowdown
+    charge = 500 if delta <= 25 else delta * 22 if target >= 95 else delta * 20
 
     print(f'Current={current}, target={target} => charge={charge}')
 
